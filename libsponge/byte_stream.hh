@@ -4,7 +4,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
-#include <list>
 #include <string>
 #include <utility>
 
@@ -15,9 +14,12 @@
 //! and then no more bytes can be written.
 class ByteStream {
   private:
-    // Your code here -- add private members as necessary.
-
-    bool _error{};  //!< Flag indicating that the stream suffered an error.
+    std::deque<char> _buffer{};
+    size_t _capacity;
+    size_t _bytes_read = 0;
+    size_t _bytes_written = 0;
+    bool _input_ended = false;
+    bool _error = false;  //!< Flag indicating that the stream suffered an error.
 
   public:
     //! Construct a stream with room for `capacity` bytes.
