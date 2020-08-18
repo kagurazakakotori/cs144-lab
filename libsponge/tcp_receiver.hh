@@ -20,6 +20,11 @@ class TCPReceiver {
     //! The maximum number of bytes we'll store.
     size_t _capacity;
 
+    WrappingInt32 _isn{0};
+    uint64_t _ack_offset = 0;
+    bool _syn_received = false;
+    bool _fin_received = false;
+
   public:
     //! \brief Construct a TCP receiver
     //!
@@ -36,6 +41,9 @@ class TCPReceiver {
     //! This is the beginning of the receiver's window, or in other words, the sequence number
     //! of the first byte in the stream that the receiver hasn't received.
     std::optional<WrappingInt32> ackno() const;
+
+    //! \brief The windows starting index
+    size_t window_index() const;
 
     //! \brief The window size that should be sent to the peer
     //!

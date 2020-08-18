@@ -42,6 +42,9 @@ class StreamReassembler {
     ByteStream &stream_out() { return _output; }
     //!@}
 
+    //! The index of first byte that is not yet reassembled
+    size_t first_unassembled() const;
+
     //! The number of bytes in the substrings stored but not yet reassembled
     //!
     //! \note If the byte at a particular index has been submitted twice, it
