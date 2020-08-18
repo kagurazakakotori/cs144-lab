@@ -21,7 +21,7 @@ class TCPReceiver {
     size_t _capacity;
 
     WrappingInt32 _isn{0};
-    uint64_t _ack_offset = 0;
+    uint32_t _ack_offset = 0;
     bool _syn_received = false;
     bool _fin_received = false;
 

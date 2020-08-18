@@ -20,7 +20,7 @@ bool TCPReceiver::segment_received(const TCPSegment &seg) {
         _ack_offset += 1;
     }
 
-    uint64_t payload_index = unwrap(seg.header().seqno - !seg.header().syn, _isn, window_index());
+    uint64_t payload_index = unwrap(seg.header().seqno - _ack_offset, _isn, window_index());
     uint64_t payload_size = seg.payload().size();
 
     if (payload_size == 0) {
