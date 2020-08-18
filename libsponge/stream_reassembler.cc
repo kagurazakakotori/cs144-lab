@@ -11,7 +11,7 @@ StreamReassembler::StreamReassembler(const size_t capacity) : _output(capacity),
 //! contiguous substrings and writes them into the output stream in order.
 void StreamReassembler::push_substring(const string &data, const size_t index, const bool eof) {
     _has_eof |= eof;
-    
+
     size_t unacceptable_index = _next_index + (_capacity - _output.buffer_size());
 
     // ignore empty or outputed segments
