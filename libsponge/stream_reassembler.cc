@@ -11,22 +11,24 @@ StreamReassembler::StreamReassembler(const size_t capacity) : _output(capacity),
 //! contiguous substrings and writes them into the output stream in order.
 void StreamReassembler::push_substring(const string &data, const size_t index, const bool eof) {
     _has_eof |= eof;
+    
+    size_t unacceptable_index = _next_index + (_capacity - _output.buffer_size());
 
     // ignore empty or outputed segments
-    if (data.empty() || index + data.size() <= _next_index) {
+    if (data.empty() || index + data.size() <= _next_index || index >= unacceptable_index) {
         if (empty() && _has_eof) {
             _output.end_input();
         }
         return;
     }
 
-    // trim input to ensure index >= _next_index
+    // trim input to ensure index >= _next_index and it fits in the buffer
     size_t trimmed_index = max(index, _next_index);
-    size_t trimmed_size = data.size() - (trimmed_index - index);
+    size_t trimmed_end = min(index + data.size(), unacceptable_index);
+    size_t trimmed_size = trimmed_end - trimmed_index;
 
     // ensure no overlapping segments
     for (auto iter = _unassembled_segments.begin(); iter != _unassembled_segments.end(); /* NOTHING */) {
-        auto trimmed_end = trimmed_index + trimmed_size;
         auto segment_index = iter->first;
         auto segment_end = segment_index + iter->second.size();
 
