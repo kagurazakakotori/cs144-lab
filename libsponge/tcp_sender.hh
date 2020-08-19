@@ -28,7 +28,7 @@ class TCPSender {
 
     //! retransmission timer for the connection
     unsigned int _initial_retransmission_timeout;
-    unsigned int _retransmission_timeout = 0;
+    unsigned int _retransmission_timeout;
     unsigned int _retransmission_timer = 0;
     unsigned int _consecutive_retransmissions = 0;
 
@@ -37,9 +37,9 @@ class TCPSender {
 
     //! the (absolute) sequence number for the next byte to be sent
     uint64_t _next_seqno = 0;
+    uint64_t _last_ackno = 0;
 
     size_t _window_size = 1;  // initial window size should be 1
-    size_t _window_capacity = 1;
     size_t _outstanding_size = 0;
 
     bool _fin_sent = false;

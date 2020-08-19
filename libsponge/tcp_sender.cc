@@ -20,8 +20,12 @@ TCPSender::TCPSender(const size_t capacity, const uint16_t retx_timeout, const s
 uint64_t TCPSender::bytes_in_flight() const { return _outstanding_size; }
 
 void TCPSender::fill_window() {
+    // calculate current sliding window capacity
+    // when window size is 0, act like window size is 1, "zero window probing"
+    size_t window_capacity = ((_window_size == 0) ? 1 : _window_size) - _outstanding_size;
+
     // never send any segments after FIN is sent
-    while (!_fin_sent && _window_capacity > 0) {
+    while (!_fin_sent && window_capacity > 0) {
         TCPSegment seg;
 
         if (_next_seqno == 0) {  // send initial SYN
@@ -30,7 +34,7 @@ void TCPSender::fill_window() {
             seg.header().fin = true;
             _fin_sent = true;
         } else if (!_stream.buffer_empty()) {
-            size_t payload_size = min(_window_capacity, TCPConfig::MAX_PAYLOAD_SIZE);
+            size_t payload_size = min(window_capacity, TCPConfig::MAX_PAYLOAD_SIZE);
             seg.payload() = Buffer(move(_stream.read(payload_size)));
             if (_stream.eof()) {  // piggyback FIN
                 seg.header().fin = true;
@@ -43,7 +47,7 @@ void TCPSender::fill_window() {
 
         _next_seqno += seg.length_in_sequence_space();
         _outstanding_size += seg.length_in_sequence_space();
-        _window_capacity -= seg.length_in_sequence_space();
+        window_capacity -= seg.length_in_sequence_space();
         _segments_outstanding.push(seg);
         _segments_out.push(seg);
     }
@@ -58,7 +62,13 @@ bool TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
     }
 
     _window_size = window_size;
-    _window_capacity = window_size;
+
+    // if received ack of an acknowledged packet, do nothing
+    uint64_t abs_ackno = unwrap(ackno, _isn, _last_ackno);
+    if (abs_ackno <= _last_ackno) {
+        return true;
+    }
+    _last_ackno = abs_ackno;
 
     // remove all fully-acknowledged segments
     while (!_segments_outstanding.empty()) {
@@ -91,16 +101,18 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
 
     if (_retransmission_timer >= _retransmission_timeout) {
         // retransmit the earliest segment
-        _segments_out.push(_segments_outstanding.front());
+        if (!_segments_outstanding.empty()) {
+            _segments_out.push(_segments_outstanding.front());
 
-        if (_window_size != 0) {
-            // increment the number of consecutive retransmissions
-            _consecutive_retransmissions += 1;
-            // double the value of RTO
-            _retransmission_timeout *= 2;
+            if (_window_size != 0) {
+                // increment the number of consecutive retransmissions
+                _consecutive_retransmissions += 1;
+                // double the value of RTO
+                _retransmission_timeout *= 2;
+            }
         }
 
-        // Start the retransmission timer
+        // always reset the retransmission timer
         _retransmission_timer = 0;
     }
 }

@@ -192,7 +192,7 @@ template <typename AdaptT>
 void TCPSpongeSocket<AdaptT>::wait_until_closed() {
     shutdown(SHUT_RDWR);
     if (_tcp_thread.joinable()) {
-        cerr << "DEBUG: Waiting for clean shutdown... ";
+        cerr << "DEBUG: Waiting for clean shutdown...\n";
         _tcp_thread.join();
         cerr << "done.\n";
     }
@@ -259,7 +259,7 @@ void TCPSpongeSocket<AdaptT>::_tcp_main() {
         shutdown(SHUT_RDWR);
         if (not _tcp.value().active()) {
             cerr << "DEBUG: TCP connection finished "
-                 << (_tcp.value().state() == TCPState::State::RESET ? "uncleanly" : "cleanly.\n");
+                 << (_tcp.value().state() == TCPState::State::RESET ? "uncleanly\n" : "cleanly.\n");
         }
         _tcp.reset();
     } catch (const exception &e) {
