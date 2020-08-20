@@ -19,23 +19,10 @@ bool TCPReceiver::segment_received(const TCPSegment &seg) {
         // start recive segments when first SYN received
         _syn_received = true;
         _isn = seg.header().seqno;
-
-        // handle SYN-only segment
-        if (!seg.header().fin && seg.payload().size() == 0) {
-            _ackno = wrap(_reassembler.first_unassembled() + 1, _isn);  // +1 for SYN
-            return true;
-        }
     }
 
     if (seg.header().fin) {
         _fin_received = true;
-
-        // handle FIN-only and SYN-FIN combined (which is illegal) segment
-        if (seg.payload().size() == 0) {
-            stream_out().end_input();
-            _ackno = wrap(_reassembler.first_unassembled() + 2, _isn);  // +2 for both SYN and FIN
-            return true;
-        }
     }
 
     size_t segment_seqno = unwrap(seg.header().seqno, _isn, _reassembler.first_unassembled());
@@ -47,8 +34,9 @@ bool TCPReceiver::segment_received(const TCPSegment &seg) {
     size_t win_seqno = unwrap(_ackno, _isn, _reassembler.first_unassembled());  // ackno() always has value here
     size_t win_size = (window_size() == 0) ? 1 : window_size();  // if window size is 0, treat it as one byte
 
-    // reject segments with none of its sequence numbers falls inside the window.
-    if (segment_seqno + segment_size <= win_seqno || segment_seqno >= win_seqno + win_size) {
+    // reject segments with none of its sequence numbers falls inside the window, except SYN and FIN segments
+    bool outside_window = segment_seqno + segment_size <= win_seqno || segment_seqno >= win_seqno + win_size;
+    if (outside_window && !seg.header().syn && !seg.header().fin) {
         return false;
     }
 
