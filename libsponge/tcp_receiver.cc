@@ -5,57 +5,67 @@
 using namespace std;
 
 bool TCPReceiver::segment_received(const TCPSegment &seg) {
-    // ignore duplicate SYN or FIN
+    // reject duplicate SYN or FIN
     if ((_syn_received && seg.header().syn) || (_fin_received && seg.header().fin)) {
         return false;
     }
 
     if (!_syn_received) {
-        if (!seg.header().syn) {  // drop all segments before received an SYN
+        // drop all segments before received first SYN
+        if (!seg.header().syn) {
             return false;
         }
+
         // start recive segments when first SYN received
         _syn_received = true;
         _isn = seg.header().seqno;
-        _ack_offset += 1;
+
+        // handle SYN-only segment
+        if (!seg.header().fin && seg.payload().size() == 0) {
+            _ackno = wrap(_reassembler.first_unassembled() + 1, _isn);  // +1 for SYN
+            return true;
+        }
     }
 
-    uint64_t payload_index = unwrap(seg.header().seqno - _ack_offset, _isn, window_index());
-    uint64_t payload_size = seg.payload().size();
+    if (seg.header().fin) {
+        _fin_received = true;
 
-    if (payload_size == 0) {
-        // If segment’s size is 0 (with no payload and no SYN or FIN flag), then treat it as one byte
-        if (!seg.header().syn && !seg.header().fin) {
-            _ack_offset += 1;
-        }
-        if (seg.header().fin) {
+        // handle FIN-only and SYN-FIN combined (which is illegal) segment
+        if (seg.payload().size() == 0) {
             stream_out().end_input();
-            _fin_received = true;
-            _ack_offset += 1;
+            _ackno = wrap(_reassembler.first_unassembled() + 2, _isn);  // +2 for both SYN and FIN
+            return true;
         }
-        return true;
     }
 
-    if (payload_index >= window_index() + window_size() || payload_index + payload_size <= window_index()) {
+    size_t segment_seqno = unwrap(seg.header().seqno, _isn, _reassembler.first_unassembled());
+    size_t segment_size = seg.length_in_sequence_space() - seg.header().syn - seg.header().fin;
+    if (segment_size == 0) {  // if segment’s length is 0, treat it as one byte
+        segment_size = 1;
+    }
+
+    size_t win_seqno = unwrap(_ackno, _isn, _reassembler.first_unassembled());  // ackno() always has value here
+    size_t win_size = (window_size() == 0) ? 1 : window_size();  // if window size is 0, treat it as one byte
+
+    // reject segments with none of its sequence numbers falls inside the window.
+    if (segment_seqno + segment_size <= win_seqno || segment_seqno >= win_seqno + win_size) {
         return false;
     }
 
-    _reassembler.push_substring(seg.payload().copy(), payload_index, seg.header().fin);
-    if (seg.header().fin) {
-        _fin_received = true;
-        _ack_offset += 1;
-    }
+    _reassembler.push_substring(seg.payload().copy(), segment_seqno - 1, seg.header().fin);  // minus 1 for SYN
+
+    // update ackno, FIN should be acknowledged after received all payloads
+    bool finished = _fin_received && (_reassembler.unassembled_bytes() == 0);
+    _ackno = wrap(_reassembler.first_unassembled() + 1 + finished, _isn);  // add 1 for SYN, 1 for FIN
 
     return true;
 }
 
 optional<WrappingInt32> TCPReceiver::ackno() const {
     if (_syn_received) {
-        return wrap(window_index(), _isn) + _ack_offset;
+        return _ackno;
     }
     return nullopt;
 }
-
-size_t TCPReceiver::window_index() const { return _reassembler.first_unassembled(); }
 
 size_t TCPReceiver::window_size() const { return stream_out().remaining_capacity(); }

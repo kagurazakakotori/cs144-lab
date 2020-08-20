@@ -21,7 +21,7 @@ class TCPReceiver {
     size_t _capacity;
 
     WrappingInt32 _isn{0};
-    uint32_t _ack_offset = 0;
+    WrappingInt32 _ackno{0};
     bool _syn_received = false;
     bool _fin_received = false;
 
@@ -41,9 +41,6 @@ class TCPReceiver {
     //! This is the beginning of the receiver's window, or in other words, the sequence number
     //! of the first byte in the stream that the receiver hasn't received.
     std::optional<WrappingInt32> ackno() const;
-
-    //! \brief The windows starting index
-    size_t window_index() const;
 
     //! \brief The window size that should be sent to the peer
     //!
