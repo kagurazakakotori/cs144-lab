@@ -72,9 +72,9 @@ bool TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
 
     // remove all fully-acknowledged segments
     while (!_segments_outstanding.empty()) {
-        auto &segment = _segments_outstanding.front();
-        if (ackno - segment.header().seqno >= static_cast<int32_t>(segment.length_in_sequence_space())) {
-            _outstanding_size -= segment.length_in_sequence_space();
+        TCPSegment &seg = _segments_outstanding.front();
+        if (ackno - seg.header().seqno >= static_cast<int32_t>(seg.length_in_sequence_space())) {
+            _outstanding_size -= seg.length_in_sequence_space();
             _segments_outstanding.pop();
         } else {
             break;

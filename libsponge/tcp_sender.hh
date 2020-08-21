@@ -27,10 +27,10 @@ class TCPSender {
     std::queue<TCPSegment> _segments_outstanding{};
 
     //! retransmission timer for the connection
-    unsigned int _initial_retransmission_timeout;
-    unsigned int _retransmission_timeout;
-    unsigned int _retransmission_timer = 0;
-    unsigned int _consecutive_retransmissions = 0;
+    size_t _initial_retransmission_timeout;
+    size_t _retransmission_timeout;
+    size_t _retransmission_timer = 0;
+    size_t _consecutive_retransmissions = 0;
 
     //! outgoing stream of bytes that have not yet been sent
     ByteStream _stream;
