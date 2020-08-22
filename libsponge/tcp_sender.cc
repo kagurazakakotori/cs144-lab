@@ -34,9 +34,10 @@ void TCPSender::fill_window() {
             seg.header().fin = true;
             _fin_sent = true;
         } else if (!_stream.buffer_empty()) {
-            size_t payload_size = min(window_capacity, TCPConfig::MAX_PAYLOAD_SIZE);
-            seg.payload() = Buffer(move(_stream.read(payload_size)));
-            if (_stream.eof()) {  // piggyback FIN
+            seg.payload() = Buffer(move(_stream.read(min(window_capacity, TCPConfig::MAX_PAYLOAD_SIZE))));
+
+            // handle piggyback FIN, MUST ensure the sliding window can hold it
+            if (_stream.eof() && window_capacity - seg.length_in_sequence_space() > 0) {
                 seg.header().fin = true;
                 _fin_sent = true;
             }
@@ -57,23 +58,24 @@ void TCPSender::fill_window() {
 //! \param window_size The remote receiver's advertised window size
 //! \returns `false` if the ackno appears invalid (acknowledges something the TCPSender hasn't sent yet)
 bool TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_size) {
-    if (ackno - next_seqno() > 0) {
+    uint64_t abs_ackno = unwrap(ackno, _isn, _last_ackno);
+    if (abs_ackno > next_seqno_absolute()) {
         return false;
     }
 
     _window_size = window_size;
 
     // if received ack of an acknowledged packet, do nothing
-    uint64_t abs_ackno = unwrap(ackno, _isn, _last_ackno);
     if (abs_ackno <= _last_ackno) {
         return true;
     }
     _last_ackno = abs_ackno;
 
-    // remove all fully-acknowledged segments
     while (!_segments_outstanding.empty()) {
         TCPSegment &seg = _segments_outstanding.front();
-        if (ackno - seg.header().seqno >= static_cast<int32_t>(seg.length_in_sequence_space())) {
+        uint64_t abs_seqno = unwrap(seg.header().seqno, _isn, _last_ackno);
+
+        if (abs_ackno >= abs_seqno + seg.length_in_sequence_space()) {
             _outstanding_size -= seg.length_in_sequence_space();
             _segments_outstanding.pop();
         } else {
