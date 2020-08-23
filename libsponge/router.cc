@@ -1,22 +1,8 @@
 #include "router.hh"
 
-#include <iostream>
-
 using namespace std;
 
-// Dummy implementation of an IP router
-
-// Given an incoming Internet datagram, the router decides
-// (1) which interface to send it out on, and
-// (2) what next hop address to send it to.
-
-// For Lab 6, please replace with a real implementation that passes the
-// automated checks run by `make check_lab6`.
-
-// You will need to add private members to the class declaration in `router.hh`
-
-template <typename... Targs>
-void DUMMY_CODE(Targs &&... /* unused */) {}
+// Implementation of an IP router
 
 //! \param[in] route_prefix The "up-to-32-bit" IPv4 address prefix to match the datagram's destination address against
 //! \param[in] prefix_length For this route to be applicable, how many high-order (most-significant) bits of the route_prefix will need to match the corresponding bits of the datagram's destination address?
@@ -26,24 +12,36 @@ void Router::add_route(const uint32_t route_prefix,
                        const uint8_t prefix_length,
                        const optional<Address> next_hop,
                        const size_t interface_num) {
-    cerr << "DEBUG: adding route " << Address::from_ipv4_numeric(route_prefix).ip() << "/" << int(prefix_length)
-         << " => " << (next_hop.has_value() ? next_hop->ip() : "(direct)") << " on interface " << interface_num << "\n";
-
-    DUMMY_CODE(route_prefix, prefix_length, next_hop, interface_num);
-    // Your code here.
+    _routing_table[prefix_length][route_prefix] = {next_hop, interface_num};
 }
 
 //! \param[in] dgram The datagram to be routed
 void Router::route_one_datagram(InternetDatagram &dgram) {
-    DUMMY_CODE(dgram);
-    // Your code here.
+    for (int i = 32; i >= 0; i--) {
+        const uint32_t prefix_to_match = dgram.header().dst & SUBNET_MASK[i];
+
+        if (_routing_table[i].count(prefix_to_match)) {
+            // if ttl is already reached zero or is going to reach zero, drop the datagram
+            // router only decrements the TTL if it is forwarding the datagram
+            if (dgram.header().ttl <= 1) {
+                return;
+            }
+
+            dgram.header().ttl -= 1;
+
+            Address next_hop =
+                _routing_table[i][prefix_to_match].next_hop.value_or(Address::from_ipv4_numeric(dgram.header().dst));
+            interface(_routing_table[i][prefix_to_match].interface_num).send_datagram(dgram, next_hop);
+            return;
+        }
+    }
 }
 
 void Router::route() {
     // Go through all the interfaces, and route every incoming datagram to its proper outgoing interface.
     for (auto &interface : _interfaces) {
         auto &queue = interface.datagrams_out();
-        while (not queue.empty()) {
+        while (!queue.empty()) {
             route_one_datagram(queue.front());
             queue.pop();
         }
