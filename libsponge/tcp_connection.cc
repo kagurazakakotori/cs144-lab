@@ -1,7 +1,5 @@
 #include "tcp_connection.hh"
 
-#include <iostream>
-
 // Implementation of a TCP connection
 
 using namespace std;
@@ -107,13 +105,10 @@ void TCPConnection::connect() {
 TCPConnection::~TCPConnection() {
     try {
         if (active()) {
-            cerr << "Warning: Unclean shutdown of TCPConnection\n";
-
             // send a RST segment to the peer
             _send_rst();
         }
     } catch (const exception &e) {
-        std::cerr << "Exception destructing TCP FSM: " << e.what() << std::endl;
     }
 }
 
