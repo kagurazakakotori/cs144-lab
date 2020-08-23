@@ -7,6 +7,20 @@
 
 #include <optional>
 #include <queue>
+#include <unordered_map>
+
+//! Zero Ethernet address (00:00:00:00:00:00)
+// RFC 5227, 2.1.1, for ARP requests, the 'target hardware address' field is ignored and SHOULD be set to all zeroes.
+constexpr EthernetAddress ETHERNET_ZERO = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+constexpr uint64_t ARP_WAIT_TIME = 5000;
+constexpr uint64_t ARP_STALE_TIME = 30000;
+
+struct ARPTableEntry {
+    EthernetAddress ethernet_address;
+    bool reachable;
+    uint64_t expire_time;
+};
 
 //! \brief A "network interface" that connects IP (the internet layer, or network layer)
 //! with Ethernet (the network access layer, or link layer).
@@ -37,8 +51,26 @@ class NetworkInterface {
     //! IP (known as internet-layer or network-layer) address of the interface
     Address _ip_address;
 
+    //! time since NetworkInterface constructed in milliseconds
+    //! use uint64_t to store time, not considering overflow since it can hold 584 billion years from now
+    //! trust me, this code wont work such a long time
+    uint64_t _current_time = 0;
+
     //! outbound queue of Ethernet frames that the NetworkInterface wants sent
     std::queue<EthernetFrame> _frames_out{};
+
+    std::unordered_map<uint32_t, std::queue<InternetDatagram>> _datagrams_out{};
+
+    std::unordered_map<uint32_t, ARPTableEntry> _arp_table{};
+
+    //! \brief Sends an IPv4 datagram, encapsulated in an Ethernet frame, for a reachable IP address
+    void _send_ipv4_datagram(const InternetDatagram &dgram, const uint32_t ipaddr);
+
+    //! \brief Sends an ARP message, encapsulated in an Ethernet frame
+    //! \note When opcode is request (1), target_ethaddr will be ignored
+    void _send_arp_message(const uint16_t opcode,
+                           const uint32_t target_ipaddr,
+                           const EthernetAddress target_ethaddr = ETHERNET_ZERO);
 
   public:
     //! \brief Construct a network interface with given Ethernet (network-access-layer) and IP (internet-layer) addresses
